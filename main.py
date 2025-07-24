@@ -157,7 +157,7 @@ def generate_report_with_gemini(astro_data):
         raise ValueError("GEMINI_API_KEYが設定されていません。")
 
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""
 あなたはプロのマンデン占星術師（社会情勢を占う占星術師）です。
