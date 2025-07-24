@@ -19,7 +19,8 @@ swe.set_ephe_path(EPHE_PATH)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 TO_EMAIL = os.getenv('TO_EMAIL')
-FROM_EMAIL = "noreply@example.com" # SendGridで認証した送信元メールアドレス
+# SendGridで認証した送信元メールアドレスに書き換えてください
+FROM_EMAIL = "noreply@example.com" 
 
 # --- 占星術関連の定数 ---
 
@@ -46,10 +47,10 @@ ASPECTS = {
 }
 
 # 日本のマンデン占星術用ネイタルデータ（大日本帝国憲法公布時）
+# ▼▼▼【エラー修正】ユリウス日計算に不要なlatとlonを削除 ▼▼▼
 JAPAN_NATAL_DATA = {
     "year": 1889, "month": 2, "day": 11,
     "hour": 10, "minute": 30, "second": 0,
-    "lat": 35.6895, "lon": 139.6917, # 東京の緯度経度
     "tz": 9.0 # JST
 }
 
@@ -130,14 +131,18 @@ def detect_lunation_and_eclipse(geo_points):
     if sun_moon_diff < 3.0:
         event = "新月"
         # 日食判定 (月のノードとの距離が15度以内)
-        if abs(sun_pos - node_pos) < 15 or abs(sun_pos - (node_pos + 180) % 360) < 15:
+        sun_node_dist = abs(sun_pos - node_pos)
+        if sun_node_dist > 180: sun_node_dist = 360 - sun_node_dist
+        if sun_node_dist < 15:
             event = "日食（新月）"
 
     # 満月判定 (オーブ3度)
     elif abs(sun_moon_diff - 180) < 3.0:
         event = "満月"
         # 月食判定 (月のノードとの距離が12度以内)
-        if abs(sun_pos - node_pos) < 12 or abs(sun_pos - (node_pos + 180) % 360) < 12:
+        sun_node_dist = abs(sun_pos - node_pos)
+        if sun_node_dist > 180: sun_node_dist = 360 - sun_node_dist
+        if sun_node_dist < 12:
             event = "月食（満月）"
     
     if event:
@@ -198,6 +203,9 @@ def send_email_with_sendgrid(html_content):
     """SendGrid APIを使ってメールを送信する"""
     if not SENDGRID_API_KEY or not TO_EMAIL:
         raise ValueError("SENDGRID_API_KEYまたはTO_EMAILが設定されていません。")
+    
+    if not FROM_EMAIL or "@" not in FROM_EMAIL:
+        raise ValueError("FROM_EMAILが正しく設定されていません。SendGridで認証したメールアドレスを指定してください。")
 
     message = Mail(
         from_email=FROM_EMAIL,
