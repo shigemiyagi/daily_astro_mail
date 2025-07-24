@@ -13,7 +13,7 @@ swe.set_ephe_path(EPHE_PATH)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 TO_EMAIL = os.getenv('TO_EMAIL')
-FROM_EMAIL = "your-verified-email@gmail.com" # SendGridで認証した送信元メールアドレスに書き換えてください
+FROM_EMAIL = "shigemiyagi@gmail.com" # SendGridで認証した送信元メールアドレスに書き換えてください
 
 # --- 占星術関連の定数 ---
 SIGN_NAMES = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"]
