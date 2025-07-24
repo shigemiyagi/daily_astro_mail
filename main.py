@@ -20,7 +20,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 TO_EMAIL = os.getenv('TO_EMAIL')
 # SendGridで認証した送信元メールアドレスに書き換えてください
-FROM_EMAIL = "noreply@example.com" 
+FROM_EMAIL = "shigemiyagi@gmail.com" 
 
 # --- 占星術関連の定数 ---
 
