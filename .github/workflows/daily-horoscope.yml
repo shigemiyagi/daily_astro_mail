@@ -1,0 +1,50 @@
+# ワークフローの名前
+name: Daily Horoscope Mailer
+
+# ワークフローが実行されるタイミングを定義
+on:
+  # 1. スケジュール実行
+  # 毎朝7時 (JST) に実行します。
+  # cronの時刻はUTC（協定世界時）で指定する必要があるため、JST-9時間の「22:00」を指定します。
+  schedule:
+    - cron: '0 22 * * *'
+  
+  # 2. 手動実行
+  # GitHubのActionsタブから手動で実行できるようにするための設定です。
+  # テストに便利です。
+  workflow_dispatch:
+
+# 実行する一連の処理（ジョブ）を定義
+jobs:
+  # ジョブのID（任意）
+  build-and-send-report:
+    # ジョブを実行する仮想環境の種類を指定（最新のUbuntu）
+    runs-on: ubuntu-latest
+
+    # ジョブ内のステップを定義
+    steps:
+      # 1. リポジトリのコードをチェックアウト
+      # これにより、仮想環境内で main.py や ephe/ フォルダにアクセスできるようになります。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Pythonの環境をセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # main.pyで使うPythonのバージョン
+
+      # 3. 必要なライブラリをインストール
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyswisseph google-generativeai sendgrid
+
+      # 4. Pythonスクリプトを実行
+      - name: Run horoscope script
+        # GitHub Secretsに保存したAPIキーなどを環境変数としてスクリプトに渡す
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+        run: python main.py
