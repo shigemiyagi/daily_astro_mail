@@ -1,4 +1,4 @@
 # 2024年5月時点での推奨バージョン例
-pyswisseph==2.10.03
+pyswisseph==2.10.3.2
 google-generativeai==0.5.4
 sendgrid==6.11.0
