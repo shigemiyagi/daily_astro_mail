@@ -14,7 +14,6 @@ import traceback # エラーの詳細情報を表示するためにインポー�
 # これにより、どこからスクリプトを実行してもパスが正しく解決されます。
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EPHE_PATH = os.path.join(SCRIPT_DIR, 'ephe')
-swe.set_ephe_path(EPHE_PATH)
 
 # 環境変数からAPIキーやメールアドレスを取得します。
 # これにより、コード内に直接秘密情報を書き込むのを防ぎます。
@@ -67,11 +66,33 @@ PERSONAL_NATAL_DATA = {
 }
 
 
+def setup_swiss_ephemeris():
+    """Swiss Ephemerisの初期設定とテストを行う"""
+    print(f"天体暦パスを設定中: {EPHE_PATH}")
+    
+    # パスを設定
+    swe.set_ephe_path(EPHE_PATH)
+    
+    # テスト計算を実行して設定を確認
+    test_jd = 2460000.0  # テスト用のユリウス日
+    
+    try:
+        # 最もシンプルな太陽の計算でテスト
+        result = swe.calc_ut(test_jd, swe.SUN, swe.FLG_SWIEPH)
+        print(f"Swiss Ephemeris設定テスト成功: 太陽位置 = {result[0][0]:.2f}度")
+        return True
+    except Exception as e:
+        print(f"Swiss Ephemeris設定テスト失敗: {e}")
+        print(f"現在のepheパス: {swe.get_ephe_path()}")
+        return False
+
+
 def get_julian_day(year, month, day, hour, minute, second, tz):
     """指定された日時（タイムゾーン対応）からユリウス日を計算する"""
     dt_local = datetime(year, month, day, hour, minute, second, tzinfo=timezone(timedelta(hours=tz)))
     dt_utc = dt_local.astimezone(timezone.utc)
     return swe.utc_to_jd(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second, 1)[0]
+
 
 def calculate_celestial_points(jd_ut, is_helio=False):
     """指定されたユリウス日から、各天体の位置（黄経）と速度を計算する"""
@@ -82,36 +103,73 @@ def calculate_celestial_points(jd_ut, is_helio=False):
     if is_helio:
         iflag |= swe.FLG_HELCTR
 
+    successful_calculations = 0
+    total_calculations = len(celestial_bodies)
+
     for name, p_id in celestial_bodies.items():
-        # ▼▼▼【最終修正】▼▼▼
-        # 成功している参照コードの挙動に合わせ、戻り値が入れ子になっていることを想定して解析します。
-        # これにより、ライブラリのバージョンや環境による挙動の違いを吸収します。
-        result_tuple = swe.calc_ut(jd_ut, p_id, iflag)
-        res = result_tuple[0]  # 計算結果のタプル
-        err = result_tuple[1]  # エラーメッセージ
-        # ▲▲▲ ここまでが最終修正点 ▲▲▲
-
-        if err:
-            print(f"Warning: {name}の計算でエラーが発生しました: {err}")
+        try:
+            # より詳細なエラーハンドリング
+            result = swe.calc_ut(jd_ut, p_id, iflag)
+            
+            # 結果の構造を確認
+            if not result or len(result) < 2:
+                print(f"Error: {name}の計算結果が無効です: {result}")
+                continue
+            
+            res = result[0]  # 計算結果のタプル
+            err_msg = result[1] if len(result) > 1 else ""  # エラーメッセージ
+            
+            # エラーメッセージが文字列でない場合の対応
+            if err_msg and str(err_msg).strip():
+                print(f"Warning: {name}の計算でエラーが発生しました: {err_msg}")
+                continue
+            
+            # 結果の妥当性チェック
+            if not res or len(res) < 4:
+                print(f"Warning: {name}の計算結果が不完全です: {res}")
+                continue
+            
+            # resは(黄経, 黄緯, 距離, 黄経速度, 黄緯速度, 距離速度)のタプル
+            points[name] = {'pos': res[0], 'speed': res[3]}
+            successful_calculations += 1
+            
+        except Exception as e:
+            print(f"Exception: {name}の計算中に例外が発生しました: {e}")
+            print(f"  ユリウス日: {jd_ut}")
+            print(f"  天体ID: {p_id}")
+            print(f"  フラグ: {iflag}")
             continue
-        # resは(黄経, 黄緯, 距離, 黄経速度, 黄緯速度, 距離速度)のタプル
-        points[name] = {'pos': res[0], 'speed': res[3]}
 
+    # ドラゴンテイルの計算
     if "ドラゴンヘッド" in points:
         head_pos = points["ドラゴンヘッド"]['pos']
         points["ドラゴンテイル"] = {'pos': (head_pos + 180) % 360, 'speed': points["ドラゴンヘッド"]['speed']}
+        successful_calculations += 1
 
+    print(f"天体計算結果: {successful_calculations}/{total_calculations + (1 if 'ドラゴンヘッド' in celestial_bodies else 0)} 成功")
+    
     return points
+
 
 def calculate_houses(jd_ut, lat, lon, house_system):
     """ハウスカスプを計算する。高緯度などでのエラーを考慮する"""
     try:
         # housesの戻り値は (カスプのリスト, (ASC, MC, ...)) のタプル
-        cusps, ascmc = swe.houses(jd_ut, lat, lon, house_system)
+        result = swe.houses(jd_ut, lat, lon, house_system)
+        if not result or len(result) < 1:
+            print("Warning: ハウス計算の結果が無効です")
+            return None
+        
+        cusps = result[0]
+        if not cusps or len(cusps) < 13:  # インデックス0-12まで必要
+            print("Warning: ハウスカスプが不完全です")
+            return None
+        
         return cusps
-    except swe.Error as e:
+    except Exception as e:
         print(f"Warning: ハウスが計算できませんでした（高緯度など）。詳細: {e}")
-        return None # 計算失敗時はNoneを返す
+        return None
+
 
 def format_positions_for_ai(title, points):
     """天体位置をAIが解釈しやすいテキスト形式に変換する"""
@@ -126,6 +184,7 @@ def format_positions_for_ai(title, points):
         lines.append(f"- {name}{retrograde_marker}: {SIGN_NAMES[sign_index]} {degree:.2f}度")
     return "\n".join(lines)
 
+
 def format_houses_for_ai(title, houses):
     """ハウスをAIが解釈しやすいテキスト形式に変換する"""
     if houses is None: return "" # ハウス計算が失敗した場合は何もしない
@@ -137,6 +196,7 @@ def format_houses_for_ai(title, houses):
         degree = pos % DEGREES_PER_SIGN
         lines.append(f"- 第{i}ハウス: {SIGN_NAMES[sign_index]} {degree:.2f}度")
     return "\n".join(lines)
+
 
 def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
     """アスペクトを計算し、AI用にフォーマットする"""
@@ -163,6 +223,7 @@ def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
     if not aspect_list:
         return f"### {title}\n- 注目すべきタイトなアスペクトはありません。"
     return f"### {title}\n" + "\n".join(aspect_list)
+
 
 def get_moon_age_and_event(geo_points):
     """月齢と、新月/満月/食のイベントを検出する"""
@@ -191,6 +252,7 @@ def get_moon_age_and_event(geo_points):
         result_text += f"\n- 本日は「{event}」です。特別なエネルギーが流れる日です。"
     return result_text
 
+
 def generate_report_with_gemini(astro_data):
     """Gemini APIを呼び出してレポートを生成する"""
     genai.configure(api_key=GEMINI_API_KEY)
@@ -207,6 +269,7 @@ def generate_report_with_gemini(astro_data):
     except Exception as e:
         print(f"Gemini APIの呼び出し中にエラーが発生しました: {e}")
         raise
+
 
 def send_email_with_sendgrid(html_content):
     """SendGrid APIを使ってHTMLメールを送信する"""
@@ -226,9 +289,14 @@ def send_email_with_sendgrid(html_content):
         print(f"SendGridでのメール送信中にエラーが発生しました: {e}")
         raise
 
+
 def main():
     """プログラムのメイン処理"""
     print("占星術レポート生成プロセスを開始します...")
+
+    # Swiss Ephemerisの設定とテスト
+    if not setup_swiss_ephemeris():
+        raise RuntimeError("Swiss Ephemerisの初期設定に失敗しました。天体暦ファイルを確認してください。")
 
     # 1. ネイタルチャート計算
     print("あなたのネイタルチャートを計算中...")
@@ -244,9 +312,15 @@ def main():
     transit_geo_points = calculate_celestial_points(jd_transit)
     transit_helio_points = calculate_celestial_points(jd_transit, is_helio=True)
 
-    # どちらかの計算結果が空（エラー）の場合、処理を中断
-    if not natal_points or not transit_geo_points:
-        raise RuntimeError("致命的なエラー: 天体計算に失敗しました。ログのWarningメッセージを確認してください。")
+    # 計算結果の妥当性チェック（より寛容に）
+    min_required_points = 5  # 最低限必要な天体数を下げる
+    if len(natal_points) < min_required_points:
+        raise RuntimeError(f"致命的なエラー: ネイタル天体計算に失敗しました。計算できた天体数: {len(natal_points)}")
+    
+    if len(transit_geo_points) < min_required_points:
+        raise RuntimeError(f"致命的なエラー: トランジット天体計算に失敗しました。計算できた天体数: {len(transit_geo_points)}")
+
+    print(f"計算成功: ネイタル天体 {len(natal_points)}個, トランジット天体 {len(transit_geo_points)}個")
 
     # 3. AI用データ編集
     print("AIプロンプト用のデータを編集中...")
@@ -274,6 +348,7 @@ def main():
     send_email_with_sendgrid(report_html)
     print("プロセスが正常に完了しました。")
 
+
 if __name__ == "__main__":
     try:
         # --- 1. 起動前チェック ---
@@ -289,10 +364,15 @@ if __name__ == "__main__":
             if not files_in_ephe:
                 print("警告: 'ephe'フォルダは空です。天体暦ファイル（.se1）を配置してください。")
             else:
+                print(f"天体暦フォルダ内のファイル数: {len(files_in_ephe)}")
+                se1_files = [f for f in files_in_ephe if f.endswith('.se1')]
+                print(f".se1ファイル数: {len(se1_files)}")
+                
                 # 代表的なファイル(冥王星)のサイズをチェック
                 pluto_file_path = os.path.join(EPHE_PATH, 'sepl_18.se1')
                 if os.path.exists(pluto_file_path):
                     file_size = os.path.getsize(pluto_file_path)
+                    print(f"sepl_18.se1のファイルサイズ: {file_size} bytes")
                     if file_size < 1000:
                         print("★★★ 重大な警告: ファイルサイズが非常に小さいです。これはGit LFSのポインターファイルである可能性が高いです。")
                         print("★★★ 解決策: あなたのリポジトリでGit LFSを有効にする必要があります。")
