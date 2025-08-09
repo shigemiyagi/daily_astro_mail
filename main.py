@@ -30,14 +30,21 @@ SIGN_NAMES = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙
 # 1つの星座が持つ度数（30度）を定義します。
 DEGREES_PER_SIGN = 30
 
-# 計算対象の天体・感受点を定義します。
+# 計算対象の天体・感受点を定義します（占星術的重要度順に配置）。
 GEO_CELESTIAL_BODIES = {
-    "太陽": swe.SUN, "月": swe.MOON, "水星": swe.MERCURY, "金星": swe.VENUS,
-    "火星": swe.MARS, "木星": swe.JUPITER, "土星": swe.SATURN, "天王星": swe.URANUS,
-    "海王星": swe.NEPTUNE, "冥王星": swe.PLUTO,
-    "ドラゴンヘッド": swe.MEAN_NODE,
-    "リリス": swe.MEAN_APOG,
-    "キロン": swe.CHIRON
+    "太陽": swe.SUN, 
+    "月": swe.MOON, 
+    "水星": swe.MERCURY, 
+    "金星": swe.VENUS,
+    "火星": swe.MARS, 
+    "木星": swe.JUPITER, 
+    "土星": swe.SATURN, 
+    "天王星": swe.URANUS,
+    "海王星": swe.NEPTUNE, 
+    "冥王星": swe.PLUTO,
+    "ドラゴンヘッド": swe.TRUE_NODE,  # 真のドラゴンヘッドを使用
+    "キロン": swe.CHIRON,  # キロンをリリスより優先
+    "リリス": swe.MEAN_APOG  # 平均リリスは最後
 }
 
 # 太陽中心（ヘリオセントリック）で計算する天体
@@ -47,12 +54,12 @@ HELIO_CELESTIAL_BODIES = {
     "冥王星": swe.PLUTO
 }
 
-# アスペクト定義
+# アスペクト定義（オーブを調整）
 ASPECTS = {
-    "コンジャンクション (0度)": {"angle": 0, "orb": 8},
-    "オポジション (180度)": {"angle": 180, "orb": 8},
-    "トライン (120度)": {"angle": 120, "orb": 8},
-    "スクエア (90度)": {"angle": 90, "orb": 6},
+    "コンジャンクション (0度)": {"angle": 0, "orb": 6},
+    "オポジション (180度)": {"angle": 180, "orb": 6},
+    "トライン (120度)": {"angle": 120, "orb": 5},
+    "スクエア (90度)": {"angle": 90, "orb": 5},
     "セクスタイル (60度)": {"angle": 60, "orb": 4},
 }
 
@@ -62,7 +69,7 @@ PERSONAL_NATAL_DATA = {
     "hour": 16, "minute": 25, "second": 0,
     "tz": 9.0,
     "lon": 127.8085, "lat": 26.3348,
-    "house_system": b'P'
+    "house_system": b'W'  # Whole Signハウス（Placidusより安定）
 }
 
 
@@ -285,26 +292,53 @@ def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
     if not points1 or not points2: return ""
     aspect_list = []
     p1_items, p2_items = list(points1.items()), list(points2.items())
+    
     for i in range(len(p1_items)):
         for j in range(len(p2_items)):
             p1_name, p1_data = p1_items[i]
             p2_name, p2_data = p2_items[j]
 
+            # 同じ天体リスト内で同じ天体同士は除外
             if points1 is points2 and i >= j:
                 continue
 
-            angle_diff = abs(p1_data['pos'] - p2_data['pos'])
+            pos1, speed1 = p1_data['pos'], p1_data['speed']
+            pos2, speed2 = p2_data['pos'], p2_data['speed']
+            
+            # 角度差を計算
+            angle_diff = abs(pos1 - pos2)
             if angle_diff > 180:
                 angle_diff = 360 - angle_diff
 
+            # 各アスペクトをチェック
             for aspect_name, params in ASPECTS.items():
-                if abs(angle_diff - params['angle']) < params['orb']:
-                    line = f"- {prefix1}{p1_name}と{prefix2}{p2_name}が{aspect_name}"
-                    aspect_list.append(line)
-                    break
+                orb_diff = abs(angle_diff - params['angle'])
+                if orb_diff <= params['orb']:
+                    # Applying/Separatingの判定（速いほうが遅いほうに近づいているかチェック）
+                    # より正確な判定のためには、実際の速度差と位置関係を考慮
+                    applying_separating = ""
+                    if points1 is not points2:  # トランジット-ネイタル間のみ判定
+                        # トランジット天体（通常より高速）がネイタル天体に向かっているか
+                        speed_diff = speed1 - speed2
+                        if speed_diff > 0.001:  # 近づいている
+                            applying_separating = " (A)"
+                        elif speed_diff < -0.001:  # 離れている
+                            applying_separating = " (S)"
+                    
+                    orb_str = f"{orb_diff:.1f}度"
+                    line = f"- {prefix1}{p1_name}と{prefix2}{p2_name}が{aspect_name} (オーブ: {orb_str}){applying_separating}"
+                    aspect_list.append((orb_diff, line))  # オーブでソート用
+                    break  # 1つのアスペクトが見つかったら次へ
+    
+    # オーブの小さい順にソート
+    aspect_list.sort(key=lambda x: x[0])
+    
     if not aspect_list:
-        return f"### {title}\n- 注目すべきタイトなアスペクトはありません。"
-    return f"### {title}\n" + "\n".join(aspect_list)
+        return f"### {title}\n- 指定オーブ内のタイトなアスペクトはありません。"
+    
+    # ソートされた結果を返す
+    sorted_lines = [line for _, line in aspect_list]
+    return f"### {title}\n" + "\n".join(sorted_lines)
 
 
 def get_moon_age_and_event(geo_points):
@@ -338,7 +372,7 @@ def get_moon_age_and_event(geo_points):
 def generate_report_with_gemini(astro_data):
     """Gemini APIを呼び出してレポートを生成する"""
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     with open('prompt.txt', 'r', encoding='utf-8') as f:
         prompt_template = f.read()
     prompt = prompt_template.format(
@@ -408,7 +442,7 @@ def main():
 
     print(f"計算成功: ネイタル天体 {len(natal_points)}個, トランジット天体 {len(transit_geo_points)}個")
 
-    # 3. AI用データ編集
+    # 3. AI用データ編集（アスペクト出力を制限）
     print("AIプロンプト用のデータを編集中...")
     astro_data_parts = [
         get_moon_age_and_event(transit_geo_points),
@@ -416,7 +450,8 @@ def main():
         format_houses_for_ai("あなたのネイタルハウス", natal_houses),
         format_positions_for_ai("今日の天体位置（地心）", transit_geo_points),
         format_positions_for_ai("今日の天体位置（太陽心）", transit_helio_points),
-        calculate_aspects_for_ai("あなたのネイタルアスペクト", natal_points, natal_points, "N.", "N."),
+        # ネイタルアスペクトは削除（要求により）
+        # calculate_aspects_for_ai("あなたのネイタルアスペクト", natal_points, natal_points, "N.", "N."),
         calculate_aspects_for_ai("今日の空模様（トランジットアスペクト）", transit_geo_points, transit_geo_points, "T.", "T."),
         calculate_aspects_for_ai("あなたへの影響（トランジット/ネイタルアスペクト）", transit_geo_points, natal_points, "今日の", "あなたの")
     ]
