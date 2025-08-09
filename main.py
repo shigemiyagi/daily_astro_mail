@@ -76,8 +76,6 @@ def get_julian_day(year, month, day, hour, minute, second, tz):
 def calculate_celestial_points(jd_ut, is_helio=False):
     """指定されたユリウス日から、各天体の位置（黄経）と速度を計算する"""
     points = {}
-    # 成功している参照コードに基づき、計算フラグをFLG_SWIEPHに変更します。
-    # これにより、外部の天体暦ファイルを明示的に使用するよう指示します。
     iflag = swe.FLG_SWIEPH | swe.FLG_SPEED
 
     celestial_bodies = HELIO_CELESTIAL_BODIES if is_helio else GEO_CELESTIAL_BODIES
@@ -85,10 +83,15 @@ def calculate_celestial_points(jd_ut, is_helio=False):
         iflag |= swe.FLG_HELCTR
 
     for name, p_id in celestial_bodies.items():
-        # calc_utの戻り値はタプル。最初の要素に計算結果、2番目にエラーメッセージが入る
-        res, err = swe.calc_ut(jd_ut, p_id, iflag)
+        # ▼▼▼【最終修正】▼▼▼
+        # 成功している参照コードの挙動に合わせ、戻り値が入れ子になっていることを想定して解析します。
+        # これにより、ライブラリのバージョンや環境による挙動の違いを吸収します。
+        result_tuple = swe.calc_ut(jd_ut, p_id, iflag)
+        res = result_tuple[0]  # 計算結果のタプル
+        err = result_tuple[1]  # エラーメッセージ
+        # ▲▲▲ ここまでが最終修正点 ▲▲▲
+
         if err:
-            # errは空文字列でない場合にエラーと判定
             print(f"Warning: {name}の計算でエラーが発生しました: {err}")
             continue
         # resは(黄経, 黄緯, 距離, 黄経速度, 黄緯速度, 距離速度)のタプル
@@ -279,29 +282,24 @@ if __name__ == "__main__":
         if not os.path.exists(EPHE_PATH):
             raise FileNotFoundError(f"設定エラー: 天体暦フォルダ '{EPHE_PATH}' が見つかりません。")
 
-        # ▼▼▼【最終診断機能】▼▼▼
-        # 天体暦フォルダの中身を検査し、ファイルが正常か、Git LFSのポインターかを判別します。
+        # 天体暦フォルダの中身を検査
         print("天体暦フォルダの内容を検査します...")
         try:
             files_in_ephe = os.listdir(EPHE_PATH)
             if not files_in_ephe:
                 print("警告: 'ephe'フォルダは空です。天体暦ファイル（.se1）を配置してください。")
             else:
-                print(f"'ephe'フォルダ内のファイル: {files_in_ephe}")
                 # 代表的なファイル(冥王星)のサイズをチェック
                 pluto_file_path = os.path.join(EPHE_PATH, 'sepl_18.se1')
                 if os.path.exists(pluto_file_path):
                     file_size = os.path.getsize(pluto_file_path)
-                    print(f"代表ファイル '{os.path.basename(pluto_file_path)}' のサイズ: {file_size} バイト")
                     if file_size < 1000:
                         print("★★★ 重大な警告: ファイルサイズが非常に小さいです。これはGit LFSのポインターファイルである可能性が高いです。")
                         print("★★★ 解決策: あなたのリポジトリでGit LFSを有効にする必要があります。")
-                        print("★★★ ヒント: ターミナルで `git lfs install` を実行後、`.gitattributes`ファイルを作成し、`*.se1 filter=lfs diff=lfs merge=lfs -text` と記述してください。その後、ファイルを再度コミット＆プッシュしてください。")
                 else:
                     print("警告: 'ephe'フォルダに主要な天体暦ファイル('sepl_18.se1'など)が見つかりません。")
         except Exception as e:
             print(f"天体暦フォルダの検査中にエラーが発生しました: {e}")
-        # ▲▲▲ ここまでが最終診断機能 ▲▲▲
 
         if not os.path.exists('prompt.txt'):
             raise FileNotFoundError("設定エラー: プロンプトファイル 'prompt.txt' が見つかりませんでした。")
