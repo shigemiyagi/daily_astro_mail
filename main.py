@@ -10,9 +10,13 @@ import traceback # エラーの詳細情報を表示するためにインポー�
 
 # --- 基本設定 ---
 
-# 天体暦(ephemeris)ファイルが格納されているフォルダのパスを指定します。
-# このフォルダ内に、Swiss Ephemerisからダウンロードしたファイルを配置します。
-EPHE_PATH = 'ephe'
+# ▼▼▼【エラー修正】▼▼▼
+# スクリプト自身の場所を基準にして、'ephe'フォルダへの絶対パスを構築します。
+# これにより、どこからスクリプトを実行してもパスが正しく解決され、
+# 天体暦ファイルの読み込みエラー(code 260)を防ぎます。
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+EPHE_PATH = os.path.join(SCRIPT_DIR, 'ephe')
+# ▲▲▲ ここまでが修正点 ▲▲▲
 swe.set_ephe_path(EPHE_PATH)
 
 # 環境変数からAPIキーやメールアドレスを取得します。
@@ -275,10 +279,6 @@ def main():
 
     # 1. あなたのネイタルチャート（出生図）を計算
     print("あなたのネイタルチャートを計算中...")
-    # ▼▼▼【エラー修正】▼▼▼
-    # get_julian_day関数は 'lon', 'lat', 'house_system' を引数に取らないため、
-    # **PERSONAL_NATAL_DATA で全てのキーを渡すとTypeErrorが発生します。
-    # 必要な引数だけを明示的に渡すように修正します。
     jd_natal = get_julian_day(
         year=PERSONAL_NATAL_DATA["year"],
         month=PERSONAL_NATAL_DATA["month"],
@@ -288,7 +288,6 @@ def main():
         second=PERSONAL_NATAL_DATA["second"],
         tz=PERSONAL_NATAL_DATA["tz"]
     )
-    # ▲▲▲ ここまでが修正点 ▲▲▲
     natal_points = calculate_celestial_points(jd_natal)
     natal_houses = calculate_houses(jd_natal, PERSONAL_NATAL_DATA["lat"], PERSONAL_NATAL_DATA["lon"], PERSONAL_NATAL_DATA["house_system"])
 
