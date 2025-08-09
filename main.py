@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta  # 日時を扱うための�
 import google.generativeai as genai  # AIモデル（Gemini）を使用するためのライブラリ
 from sendgrid import SendGridAPIClient  # メール送信サービスSendGridを使用するためのライブラリ
 from sendgrid.helpers.mail import Mail  # SendGridでメールを作成するためのクラス
+import traceback # エラーの詳細情報を表示するためにインポート
 
 # --- 基本設定 ---
 
@@ -37,8 +38,8 @@ GEO_CELESTIAL_BODIES = {
     "火星": swe.MARS, "木星": swe.JUPITER, "土星": swe.SATURN, "天王星": swe.URANUS,
     "海王星": swe.NEPTUNE, "冥王星": swe.PLUTO,
     "ドラゴンヘッド": swe.MEAN_NODE,  # 月の軌道と黄道が交差する点（平均位置）
-    "リリス": swe.MEAN_APOG,       # 月の軌道上で地球から最も遠い点（平均位置）
-    "キロン": swe.CHIRON          # 小惑星カイロン
+    "リリス": swe.MEAN_APOG,      # 月の軌道上で地球から最も遠い点（平均位置）
+    "キロン": swe.CHIRON        # 小惑星カイロン
 }
 
 # HELIO_CELESTIAL_BODIESは、太陽から見た天体の位置（太陽心、ヘリオセントリック）を計算する際に使用します。
@@ -67,9 +68,9 @@ PERSONAL_NATAL_DATA = {
     "hour": 16,
     "minute": 25,
     "second": 0,
-    "tz": 9.0,         # 日本標準時 (JST)
-    "lon": 127.8085,   # 沖縄県沖縄市の経度
-    "lat": 26.3348,    # 沖縄県沖縄市の緯度
+    "tz": 9.0,        # 日本標準時 (JST)
+    "lon": 127.8085,    # 沖縄県沖縄市の経度
+    "lat": 26.3348,     # 沖縄県沖縄市の緯度
     "house_system": b'P' # ハウスシステム (P: プラシーダス)
 }
 
@@ -91,14 +92,12 @@ def calculate_celestial_points(jd_ut, is_helio=False):
     指定されたユリウス日から、各天体の位置（黄経）と速度を計算します。
     """
     points = {}
-    # ▼▼▼【エラー修正の核心部分】▼▼▼
     # 計算方法を指定するフラグです。
     # swe.FLG_MOSEPH: 外部の天体暦ファイル(Swiss Ephemeris)が見つからない場合、
     #                 ライブラリ内蔵の計算方法(Moshier)を自動的に使用します。
     #                 これにより、ファイル不足によるエラーを回避します。
     # swe.FLG_SPEED: 天体の「速度」も計算します。これにより逆行判定が可能になります。
     iflag = swe.FLG_MOSEPH | swe.FLG_SPEED
-    # ▲▲▲ ここまでが修正点 ▲▲▲
 
     # 計算対象の天体リストを選択します（地心か太陽心か）。
     celestial_bodies = HELIO_CELESTIAL_BODIES if is_helio else GEO_CELESTIAL_BODIES
@@ -152,10 +151,10 @@ def format_houses_for_ai(title, houses):
     lines = [f"### {title}"]
     # houses配列の添字1から12が、第1ハウスから第12ハウスに対応します。
     for i in range(1, 13):
-      pos = houses[i]
-      sign_index = int(pos / DEGREES_PER_SIGN)
-      degree = pos % DEGREES_PER_SIGN
-      lines.append(f"- 第{i}ハウス: {SIGN_NAMES[sign_index]} {degree:.2f}度")
+        pos = houses[i]
+        sign_index = int(pos / DEGREES_PER_SIGN)
+        degree = pos % DEGREES_PER_SIGN
+        lines.append(f"- 第{i}ハウス: {SIGN_NAMES[sign_index]} {degree:.2f}度")
     return "\n".join(lines)
 
 def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
@@ -198,7 +197,7 @@ def get_moon_age_and_event(geo_points):
     # 月齢を計算 (太陽と月の離角から算出。1周29.53日とします)
     moon_age_angle = (moon_pos - sun_pos + 360) % 360
     moon_age = moon_age_angle / 360 * 29.53
-    result_text = f"### 今日の月齢\n- 本日の月齢は約 **{moon_age:.1f}** です。"
+    result_text = f"### 今日の月齢\n- 本日の月齢は約 {moon_age:.1f} です。"
 
     # 新月・満月・食のイベントを判定
     event = None
@@ -220,23 +219,19 @@ def get_moon_age_and_event(geo_points):
                 event = "月食（満月）"
 
     if event:
-        result_text += f"\n- 本日は**{event}**です。特別なエネルギーが流れる日です。"
+        result_text += f"\n- 本日は「{event}」です。特別なエネルギーが流れる日です。"
 
     return result_text
 
 def generate_report_with_gemini(astro_data):
     """Gemini APIを呼び出して、占星術データに基づいたレポートを生成します。"""
-    if not GEMINI_API_KEY:
-        raise ValueError("環境変数 'GEMINI_API_KEY' が設定されていません。")
-
+    # APIキーのチェックは起動時に行うため、ここでは不要
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
 
-    try:
-        with open('prompt.txt', 'r', encoding='utf-8') as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        return "<h2>レポート生成エラー</h2><p>プロンプトファイル 'prompt.txt' が見つかりませんでした。</p>"
+    # prompt.txtの存在チェックも起動時に行う
+    with open('prompt.txt', 'r', encoding='utf-8') as f:
+        prompt_template = f.read()
 
     # プロンプトのテンプレートに、今日の日付と計算した占星術データを埋め込みます。
     prompt = prompt_template.format(
@@ -248,15 +243,12 @@ def generate_report_with_gemini(astro_data):
         return response.text
     except Exception as e:
         print(f"Gemini APIの呼び出し中にエラーが発生しました: {e}")
-        return f"<h2>レポート生成エラー</h2><p>AIによるレポート生成に失敗しました。</p>"
+        # エラーが発生した場合、呼び出し元でキャッチされるように例外を再発生させる
+        raise
 
 def send_email_with_sendgrid(html_content):
     """SendGrid APIを使って、生成されたレポートをHTMLメールとして送信します。"""
-    if not SENDGRID_API_KEY or not TO_EMAIL:
-        raise ValueError("環境変数 'SENDGRID_API_KEY' または 'TO_EMAIL' が設定されていません。")
-    if not FROM_EMAIL or "@" not in FROM_EMAIL:
-        raise ValueError("'FROM_EMAIL'が正しく設定されていません。")
-        
+    # APIキーなどのチェックは起動時に行う
     message = Mail(
         from_email=FROM_EMAIL,
         to_emails=TO_EMAIL,
@@ -266,8 +258,13 @@ def send_email_with_sendgrid(html_content):
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         print(f"メール送信成功: Status Code {response.status_code}")
+        # 2xx以外のステータスコードはエラーとして扱う
+        if response.status_code < 200 or response.status_code >= 300:
+             print(f"メール送信エラー: Body: {response.body}")
+             raise RuntimeError(f"SendGridからの応答エラー (Status: {response.status_code})")
     except Exception as e:
         print(f"SendGridでのメール送信中にエラーが発生しました: {e}")
+        raise
 
 def main():
     """
@@ -278,7 +275,20 @@ def main():
 
     # 1. あなたのネイタルチャート（出生図）を計算
     print("あなたのネイタルチャートを計算中...")
-    jd_natal = get_julian_day(**PERSONAL_NATAL_DATA)
+    # ▼▼▼【エラー修正】▼▼▼
+    # get_julian_day関数は 'lon', 'lat', 'house_system' を引数に取らないため、
+    # **PERSONAL_NATAL_DATA で全てのキーを渡すとTypeErrorが発生します。
+    # 必要な引数だけを明示的に渡すように修正します。
+    jd_natal = get_julian_day(
+        year=PERSONAL_NATAL_DATA["year"],
+        month=PERSONAL_NATAL_DATA["month"],
+        day=PERSONAL_NATAL_DATA["day"],
+        hour=PERSONAL_NATAL_DATA["hour"],
+        minute=PERSONAL_NATAL_DATA["minute"],
+        second=PERSONAL_NATAL_DATA["second"],
+        tz=PERSONAL_NATAL_DATA["tz"]
+    )
+    # ▲▲▲ ここまでが修正点 ▲▲▲
     natal_points = calculate_celestial_points(jd_natal)
     natal_houses = calculate_houses(jd_natal, PERSONAL_NATAL_DATA["lat"], PERSONAL_NATAL_DATA["lon"], PERSONAL_NATAL_DATA["house_system"])
 
@@ -291,9 +301,8 @@ def main():
         
     # 天体計算が完全に失敗した場合の最終チェック
     if not natal_points or not transit_geo_points:
-        print("\n致命的なエラー: 天体計算に失敗しました。")
-        print("プログラムを終了します。")
-        return
+        # このエラーは致命的なので、例外を発生させて終了させる
+        raise RuntimeError("致命的なエラー: 天体計算に失敗しました。swissephライブラリか天体暦ファイルを確認してください。")
 
     # 3. AIに渡すための占星術データを編集
     print("AIプロンプト用のデータを編集中...")
@@ -325,10 +334,47 @@ def main():
 # このスクリプトが直接実行された場合に、main()関数を呼び出します。
 if __name__ == "__main__":
     try:
+        # --- 1. 起動前チェック ---
+        print("設定ファイルのチェックを開始します...")
+        # 天体暦フォルダ
         if not os.path.exists(EPHE_PATH):
-            print(f"エラー: 天体暦フォルダ '{EPHE_PATH}' が見つかりません。")
-        else:
-            main()
+            raise FileNotFoundError(f"設定エラー: 天体暦フォルダ '{EPHE_PATH}' が見つかりません。")
+        
+        # プロンプトファイル
+        if not os.path.exists('prompt.txt'):
+            raise FileNotFoundError("設定エラー: プロンプトファイル 'prompt.txt' が見つかりませんでした。")
+        
+        # 環境変数
+        required_vars = ['GEMINI_API_KEY', 'SENDGRID_API_KEY', 'TO_EMAIL']
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        if missing_vars:
+            raise ValueError(f"設定エラー: 以下の環境変数が設定されていません: {', '.join(missing_vars)}")
+        
+        # 送信元メールアドレスの形式チェックと注意喚起
+        if not FROM_EMAIL or "@" not in FROM_EMAIL:
+            raise ValueError("設定エラー: 'FROM_EMAIL'が正しく設定されていません。")
+        print(f"注意: 送信元メールアドレス '{FROM_EMAIL}' はSendGridで認証済みである必要があります。")
+        
+        print("設定ファイルのチェックが完了しました。")
+        print("-" * 20)
+
+        # --- 2. メイン処理の実行 ---
+        main()
+
+    except (FileNotFoundError, ValueError) as e:
+        # 設定関連のエラーをまとめてキャッチして表示
+        print(f"\n[エラー] {e}")
+        print("設定を確認してから再度実行してください。")
+
+    except Exception as e:
+        # 上記以外の予期せぬエラーをキャッチ
+        print(f"\n[予期せぬエラーが発生しました]")
+        # tracebackを使って、エラーの詳細（どのファイルの何行目で発生したか）を表示
+        traceback.print_exc()
+
     finally:
-        # プログラム終了時に、swissephのリソースを解放します。
+        # プログラムが正常終了しても、エラーで終了しても、必ず最後に実行される
+        # swissephのリソースを解放します。
+        print("-" * 20)
+        print("swissephのリソースを解放します。")
         swe.close()
