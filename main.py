@@ -17,7 +17,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 TO_EMAIL = os.getenv('TO_EMAIL')
 # SendGridで認証済みの送信元メールアドレス
-FROM_EMAIL = "horoscope@example.com"
+FROM_EMAIL = "shigemiyagi@gmail.com"
 
 # --- 占星術関連の定数 ---
 SIGN_NAMES = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"]
