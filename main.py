@@ -50,18 +50,17 @@ ASPECTS = {
     "セクスタイル (60度)": {"angle": 60, "orb": 4},
 }
 
-# ▼▼▼ あなたの出生情報を入力してください ▼▼▼
-# 例：1990年1月1日 12時30分 東京生まれの場合
+# ▼▼▼【更新】指定された出生情報に書き換え ▼▼▼
 PERSONAL_NATAL_DATA = {
-    "year": 1990,
-    "month": 1,
-    "day": 1,
-    "hour": 12,
-    "minute": 30,
+    "year": 1976,
+    "month": 12,
+    "day": 25,
+    "hour": 16,
+    "minute": 25,
     "second": 0,
     "tz": 9.0,         # 日本標準時 (JST)
-    "lon": 139.6917,   # 出生場所の経度 (例: 東京)
-    "lat": 35.6895,    # 出生場所の緯度 (例: 東京)
+    "lon": 127.8085,   # 沖縄県沖縄市の経度
+    "lat": 26.3348,    # 沖縄県沖縄市の緯度
     "house_system": b'P' # ハウスシステム (P: プラシーダス)
 }
 # ▲▲▲ ここまで ▲▲▲
@@ -248,7 +247,15 @@ def main():
 
     # --- 1. ネイタルチャートの計算 ---
     print("あなたのネイタルチャートを計算中...")
-    jd_natal = get_julian_day(**PERSONAL_NATAL_DATA)
+    jd_natal = get_julian_day(
+        PERSONAL_NATAL_DATA["year"],
+        PERSONAL_NATAL_DATA["month"],
+        PERSONAL_NATAL_DATA["day"],
+        PERSONAL_NATAL_DATA["hour"],
+        PERSONAL_NATAL_DATA["minute"],
+        PERSONAL_NATAL_DATA["second"],
+        PERSONAL_NATAL_DATA["tz"]
+    )
     natal_points = calculate_celestial_points(jd_natal)
     natal_houses = calculate_houses(jd_natal, PERSONAL_NATAL_DATA["lat"], PERSONAL_NATAL_DATA["lon"], PERSONAL_NATAL_DATA["house_system"])
 
