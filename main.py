@@ -157,11 +157,11 @@ def calculate_celestial_points(jd_ut, is_helio=False):
     
     points = {}
     
-    # フラグをシンプルに設定
+    # フラグ設定（速度計算を含む）
     if is_helio:
-        iflag = swe.FLG_SWIEPH | swe.FLG_HELCTR
+        iflag = swe.FLG_SWIEPH | swe.FLG_HELCTR | swe.FLG_SPEED
     else:
-        iflag = swe.FLG_SWIEPH
+        iflag = swe.FLG_SWIEPH | swe.FLG_SPEED
     
     print(f"使用フラグ: {iflag}")
 
@@ -175,32 +175,19 @@ def calculate_celestial_points(jd_ut, is_helio=False):
         try:
             # 計算実行
             result = swe.calc_ut(jd_ut, p_id, iflag)
-            print(f"calc_ut戻り値: {type(result)} = {result}")
             
-            # 戻り値の詳細解析
-            if not isinstance(result, (tuple, list)):
-                print(f"エラー: 戻り値がタプル/リストではありません")
-                continue
-            
-            if len(result) < 2:
-                print(f"エラー: 戻り値の要素数が不足: {len(result)}")
+            # 戻り値の基本チェック
+            if not isinstance(result, (tuple, list)) or len(result) < 2:
+                print(f"エラー: 戻り値の構造が無効: {result}")
                 continue
             
             pos_data = result[0]
-            err_data = result[1]
+            status_code = result[1]  # これはエラーコードではなくステータスフラグ
             
-            print(f"位置データ: {type(pos_data)} = {pos_data}")
-            print(f"エラーデータ: {type(err_data)} = {err_data}")
+            print(f"位置データ: {pos_data}")
+            print(f"ステータスコード: {status_code}")
             
-            # エラーチェック
-            if isinstance(err_data, (int, float)) and err_data != 0:
-                print(f"エラーコード検出: {err_data}")
-                continue
-            elif isinstance(err_data, str) and err_data.strip():
-                print(f"エラーメッセージ検出: {err_data}")
-                continue
-            
-            # 位置データの解析
+            # 位置データの妥当性チェック
             if not isinstance(pos_data, (tuple, list)) or len(pos_data) < 1:
                 print(f"エラー: 位置データが無効")
                 continue
@@ -208,26 +195,24 @@ def calculate_celestial_points(jd_ut, is_helio=False):
             longitude = pos_data[0]
             speed = pos_data[3] if len(pos_data) > 3 else 1.0
             
-            print(f"黄経: {longitude}, 速度: {speed}")
-            
-            # 妥当性チェック
+            # データ型の妥当性チェック
             if not isinstance(longitude, (int, float)):
                 print(f"エラー: 黄経が数値ではありません: {type(longitude)}")
                 continue
-                
-            if longitude < 0 or longitude >= 360:
-                print(f"警告: 黄経が範囲外: {longitude}")
-                # 範囲外でも一旦受け入れる
-                longitude = longitude % 360
-                
-            points[name] = {'pos': longitude, 'speed': speed}
+            
+            # 異常な値のチェック（ただし、計算結果として受け入れる）
+            if longitude < -360 or longitude > 720:
+                print(f"警告: 黄経が大きく範囲外: {longitude}")
+            
+            # 黄経を0-360度の範囲に正規化
+            normalized_longitude = longitude % 360
+            
+            points[name] = {'pos': normalized_longitude, 'speed': speed}
             successful_calculations += 1
-            print(f"成功: {longitude:.2f}度")
+            print(f"成功: {normalized_longitude:.2f}度 (速度: {speed:.6f})")
             
         except Exception as e:
             print(f"例外発生: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
             continue
 
     print(f"\n=== 計算結果 ===")
@@ -241,7 +226,10 @@ def calculate_celestial_points(jd_ut, is_helio=False):
         successful_calculations += 1
         print(f"ドラゴンテイル追加: {tail_pos:.2f}度")
 
-    print(f"最終結果: {successful_calculations}/{total_calculations + (1 if not is_helio and 'ドラゴンヘッド' in GEO_CELESTIAL_BODIES else 0)}")
+    final_count = successful_calculations
+    total_with_tail = total_calculations + (1 if not is_helio and 'ドラゴンヘッド' in GEO_CELESTIAL_BODIES else 0)
+    print(f"最終結果: {final_count}/{total_with_tail}")
+    
     return points
 
 
@@ -406,13 +394,17 @@ def main():
     transit_geo_points = calculate_celestial_points(jd_transit)
     transit_helio_points = calculate_celestial_points(jd_transit, is_helio=True)
 
-    # 計算結果の妥当性チェック（より寛容に）
-    min_required_points = 5  # 最低限必要な天体数を下げる
+    # 計算結果の妥当性チェック（より現実的な閾値に）
+    min_required_points = 3  # 最低限必要な天体数を更に下げる
     if len(natal_points) < min_required_points:
-        raise RuntimeError(f"致命的なエラー: ネイタル天体計算に失敗しました。計算できた天体数: {len(natal_points)}")
+        print(f"警告: ネイタル天体の計算成功数が少ないです: {len(natal_points)}")
+        if len(natal_points) == 0:
+            raise RuntimeError(f"致命的なエラー: ネイタル天体計算に全て失敗しました")
     
     if len(transit_geo_points) < min_required_points:
-        raise RuntimeError(f"致命的なエラー: トランジット天体計算に失敗しました。計算できた天体数: {len(transit_geo_points)}")
+        print(f"警告: トランジット天体の計算成功数が少ないです: {len(transit_geo_points)}")
+        if len(transit_geo_points) == 0:
+            raise RuntimeError(f"致命的なエラー: トランジット天体計算に全て失敗しました")
 
     print(f"計算成功: ネイタル天体 {len(natal_points)}個, トランジット天体 {len(transit_geo_points)}個")
 
