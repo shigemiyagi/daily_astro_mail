@@ -8,7 +8,6 @@ from sendgrid.helpers.mail import Mail
 
 # --- 基本設定 ---
 # 天体暦(ephemeris)ファイルが格納されているフォルダのパス
-# スクリプトと同じ階層に'ephe'フォルダを置いてください
 EPHE_PATH = 'ephe'
 swe.set_ephe_path(EPHE_PATH)
 
@@ -73,7 +72,11 @@ def get_julian_day(year, month, day, hour, minute, second, tz):
 def calculate_celestial_points(jd_ut, is_helio=False):
     """天体の位置と速度を計算する。逆行判定も行う。"""
     points = {}
-    iflag = swe.FLG_SWIEPH | swe.FLG_SPEED
+    # ▼▼▼【修正点】▼▼▼
+    # Swiss Ephemerisファイルが見つからない場合に、組み込みのMoshier暦にフォールバックするよう設定
+    # これにより、天体暦ファイルが不完全な場合でも計算が続行される
+    iflag = swe.FLG_SWIEPH | swe.FLG_MOSEPH | swe.FLG_SPEED
+    # ▲▲▲ ここまでが修正点 ▲▲▲
     celestial_bodies = HELIO_CELESTIAL_BODIES if is_helio else GEO_CELESTIAL_BODIES
     if is_helio:
         iflag |= swe.FLG_HELCTR
@@ -81,8 +84,12 @@ def calculate_celestial_points(jd_ut, is_helio=False):
     for name, p_id in celestial_bodies.items():
         res, err = swe.calc_ut(jd_ut, p_id, iflag)
         if err:
-            # 計算に失敗した場合は警告を出し、この天体はスキップする
-            print(f"Warning: {name}の計算でエラー: {err}")
+            # エラーメッセージがbyte列の場合があるので、デコードを試みる
+            try:
+                err_msg = err.decode('utf-8')
+            except (UnicodeDecodeError, AttributeError):
+                err_msg = str(err)
+            print(f"Warning: {name}の計算でエラー: {err_msg}")
             continue
         points[name] = {'pos': res[0], 'speed': res[3]}
 
@@ -150,11 +157,8 @@ def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
 
 def get_moon_age_and_event(geo_points):
     """月齢と、新月/満月/食のイベントを検出する"""
-    # ▼▼▼【修正点】▼▼▼
-    # '太陽'や'月'が存在するかチェックしてから処理を行う
     if "太陽" not in geo_points or "月" not in geo_points:
         return "### 今日の月齢\n- 月齢の計算に失敗しました。"
-    # ▲▲▲ ここまでが修正点 ▲▲▲
 
     sun_pos = geo_points["太陽"]['pos']
     moon_pos = geo_points["月"]['pos']
@@ -246,15 +250,6 @@ def main():
         PERSONAL_NATAL_DATA["tz"]
     )
     natal_points = calculate_celestial_points(jd_natal)
-    
-    # ▼▼▼【修正点】▼▼▼
-    # 天体計算が成功したかチェック
-    if not natal_points:
-        print("\nエラー: ネイタルチャートの天体計算に失敗しました。")
-        print("天体暦ファイルが'ephe'フォルダに正しく配置されているか確認してください。")
-        return # プログラムを終了
-    # ▲▲▲ ここまでが修正点 ▲▲▲
-    
     natal_houses = calculate_houses(jd_natal, PERSONAL_NATAL_DATA["lat"], PERSONAL_NATAL_DATA["lon"], PERSONAL_NATAL_DATA["house_system"])
 
     # --- 2. 今日のトランジットチャートの計算 ---
@@ -262,16 +257,15 @@ def main():
     now_jst = datetime.now(timezone(timedelta(hours=9)))
     jd_transit = get_julian_day(now_jst.year, now_jst.month, now_jst.day, now_jst.hour, now_jst.minute, now_jst.second, 9.0)
     transit_geo_points = calculate_celestial_points(jd_transit)
-    
+    transit_helio_points = calculate_celestial_points(jd_transit, is_helio=True)
+        
     # ▼▼▼【修正点】▼▼▼
-    # 天体計算が成功したかチェック
-    if not transit_geo_points:
-        print("\nエラー: トランジットチャートの天体計算に失敗しました。")
-        print("天体暦ファイルが'ephe'フォルダに正しく配置されているか確認してください。")
+    # 天体計算が完全に失敗した場合の最終チェック
+    if not natal_points or not transit_geo_points:
+        print("\n致命的なエラー: 天体計算に失敗しました。")
+        print("天体暦ファイルが'ephe'フォルダに正しく配置されているか、または破損していないか確認してください。")
         return # プログラムを終了
     # ▲▲▲ ここまでが修正点 ▲▲▲
-        
-    transit_helio_points = calculate_celestial_points(jd_transit, is_helio=True)
 
     # --- 3. AIプロンプト用のデータ編集 ---
     print("AIプロンプト用のデータを編集中...")
@@ -302,9 +296,9 @@ def main():
 
 if __name__ == "__main__":
     try:
-        if not os.path.exists(EPHE_PATH) or not os.listdir(EPHE_PATH):
-            print(f"エラー: 天体暦フォルダ '{EPHE_PATH}' が見つからないか、空です。")
-            print("Swiss Ephemerisのサイトから天体暦ファイルをダウンロードし、'ephe'フォルダに配置してください。")
+        # 起動時のファイルチェックは、より具体的なエラーメッセージをmain関数内で表示するため簡略化
+        if not os.path.exists(EPHE_PATH):
+            print(f"エラー: 天体暦フォルダ '{EPHE_PATH}' が見つかりません。")
         else:
             main()
     except Exception as e:
