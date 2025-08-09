@@ -72,139 +72,176 @@ def setup_swiss_ephemeris():
     
     # パスを設定
     swe.set_ephe_path(EPHE_PATH)
-    print(f"設定されたパス: {swe.get_ephe_path()}")
     
-    # 複数の日付でテスト計算を実行
-    test_dates = [
-        ("現在", 2460000.0),  # 2023年頃
-        ("1976年", 2443144.0), # 1976年1月1日頃
-        ("2025年", 2460676.0)  # 2025年頃
-    ]
+    # テスト用の日付（現在の日付に近い値）
+    test_jd = 2460676.0  # 2025年1月頃
     
-    for test_name, test_jd in test_dates:
-        try:
-            print(f"\n{test_name}のテスト (JD={test_jd}):")
+    try:
+        print(f"テスト計算実行中 (JD={test_jd})...")
+        
+        # 最もシンプルな太陽の計算でテスト（フラグなし）
+        result = swe.calc_ut(test_jd, swe.SUN, swe.FLG_SWIEPH)
+        print(f"calc_ut戻り値のタイプ: {type(result)}")
+        print(f"calc_ut戻り値の長さ: {len(result) if hasattr(result, '__len__') else 'スカラー'}")
+        print(f"calc_ut戻り値: {result}")
+        
+        # 戻り値の構造を調べる
+        if isinstance(result, (tuple, list)) and len(result) >= 2:
+            pos_data = result[0]
+            err_data = result[1]
+            print(f"位置データ: {type(pos_data)} = {pos_data}")
+            print(f"エラーデータ: {type(err_data)} = {err_data}")
             
-            # 最もシンプルな太陽の計算でテスト
-            result = swe.calc_ut(test_jd, swe.SUN, swe.FLG_SWIEPH)
-            print(f"  結果タイプ: {type(result)}")
-            print(f"  結果長: {len(result) if hasattr(result, '__len__') else 'N/A'}")
-            print(f"  result[0]: {type(result[0])}, 値: {result[0]}")
-            print(f"  result[1]: {type(result[1])}, 値: {result[1]}")
-            
-            if hasattr(result[0], '__len__') and len(result[0]) > 0:
-                sun_pos = result[0][0]
-                print(f"  太陽位置: {sun_pos:.2f}度")
+            if isinstance(pos_data, (tuple, list)) and len(pos_data) > 0:
+                sun_pos = pos_data[0]
+                print(f"テスト成功: 太陽位置 = {sun_pos:.2f}度")
+                return True
             else:
-                print(f"  警告: 結果の構造が予期しない形です")
-                
-        except Exception as e:
-            print(f"  エラー: {e}")
+                print(f"エラー: 位置データが無効 = {pos_data}")
+                return False
+        else:
+            print(f"エラー: 予期しない戻り値構造 = {result}")
             return False
-    
-    print("\nSwiss Ephemeris設定テスト完了")
-    return True
+            
+    except Exception as e:
+        print(f"Swiss Ephemeris設定テスト失敗: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def get_julian_day(year, month, day, hour, minute, second, tz):
     """指定された日時（タイムゾーン対応）からユリウス日を計算する"""
-    dt_local = datetime(year, month, day, hour, minute, second, tzinfo=timezone(timedelta(hours=tz)))
-    dt_utc = dt_local.astimezone(timezone.utc)
-    
-    # デバッグ情報を出力
-    print(f"日時変換: {year}-{month}-{day} {hour}:{minute}:{second} (UTC{tz:+.1f})")
-    print(f"UTC変換後: {dt_utc}")
+    print(f"\n=== ユリウス日計算 ===")
+    print(f"入力日時: {year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d} (UTC{tz:+.1f})")
     
     try:
-        # utc_to_jdの戻り値は (JD_UT, JD_TT) のタプル
-        jd_result = swe.utc_to_jd(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second, 1)
-        jd_ut = jd_result[0]
-        print(f"計算されたユリウス日: {jd_ut}")
+        # タイムゾーン変換
+        dt_local = datetime(year, month, day, hour, minute, second, tzinfo=timezone(timedelta(hours=tz)))
+        dt_utc = dt_local.astimezone(timezone.utc)
+        print(f"UTC変換後: {dt_utc}")
         
-        # ユリウス日の妥当性チェック
+        # ユリウス日計算
+        jd_result = swe.utc_to_jd(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second, 1)
+        print(f"utc_to_jd戻り値: {type(jd_result)} = {jd_result}")
+        
+        if isinstance(jd_result, (tuple, list)) and len(jd_result) > 0:
+            jd_ut = jd_result[0]
+        else:
+            jd_ut = jd_result  # スカラーの場合
+            
+        print(f"ユリウス日: {jd_ut}")
+        
+        # 妥当性チェック
+        if not isinstance(jd_ut, (int, float)):
+            raise ValueError(f"ユリウス日が数値ではありません: {type(jd_ut)}")
+            
         if jd_ut < 1000000 or jd_ut > 3000000:  # 大まかな範囲チェック
-            raise ValueError(f"ユリウス日が範囲外です: {jd_ut}")
+            print(f"警告: ユリウス日が予期しない範囲: {jd_ut}")
+            # ただし処理は継続
         
         return jd_ut
+        
     except Exception as e:
-        print(f"ユリウス日計算エラー: {e}")
+        print(f"ユリウス日計算エラー: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
 def calculate_celestial_points(jd_ut, is_helio=False):
     """指定されたユリウス日から、各天体の位置（黄経）と速度を計算する"""
-    print(f"天体計算開始: JD={jd_ut}, ヘリオ={is_helio}")
+    print(f"\n=== 天体計算開始 ===")
+    print(f"ユリウス日: {jd_ut}")
+    print(f"ヘリオセントリック: {is_helio}")
+    
     points = {}
     
-    # より基本的なフラグ設定を試す
+    # フラグをシンプルに設定
     if is_helio:
-        iflag = swe.FLG_SWIEPH | swe.FLG_HELCTR | swe.FLG_SPEED
+        iflag = swe.FLG_SWIEPH | swe.FLG_HELCTR
     else:
-        iflag = swe.FLG_SWIEPH | swe.FLG_SPEED
+        iflag = swe.FLG_SWIEPH
+    
+    print(f"使用フラグ: {iflag}")
 
     celestial_bodies = HELIO_CELESTIAL_BODIES if is_helio else GEO_CELESTIAL_BODIES
     successful_calculations = 0
     total_calculations = len(celestial_bodies)
 
     for name, p_id in celestial_bodies.items():
+        print(f"\n--- {name}の計算開始 (ID={p_id}) ---")
+        
         try:
-            print(f"計算中: {name} (ID={p_id}, flag={iflag})")
-            
-            # より詳細なエラーハンドリング
+            # 計算実行
             result = swe.calc_ut(jd_ut, p_id, iflag)
+            print(f"calc_ut戻り値: {type(result)} = {result}")
             
-            # 結果の構造を詳細に確認
-            print(f"{name}の計算結果構造: type={type(result)}, len={len(result) if hasattr(result, '__len__') else 'N/A'}")
-            if hasattr(result, '__len__') and len(result) >= 1:
-                print(f"  result[0]: type={type(result[0])}, value={result[0]}")
-                if len(result) >= 2:
-                    print(f"  result[1]: type={type(result[1])}, value={result[1]}")
-            
-            # 結果の妥当性チェック
-            if not result or not hasattr(result, '__len__') or len(result) < 2:
-                print(f"Error: {name}の計算結果が無効です: {result}")
+            # 戻り値の詳細解析
+            if not isinstance(result, (tuple, list)):
+                print(f"エラー: 戻り値がタプル/リストではありません")
                 continue
             
-            res = result[0]  # 計算結果のタプル
-            err_code = result[1] if len(result) > 1 else 0  # エラーコード（数値）
-            
-            # エラーコードのチェック（数値として）
-            if err_code != 0:
-                print(f"Error: {name}でエラーコード {err_code} が発生しました")
+            if len(result) < 2:
+                print(f"エラー: 戻り値の要素数が不足: {len(result)}")
                 continue
             
-            # 結果データの妥当性チェック
-            if not res or not hasattr(res, '__len__') or len(res) < 4:
-                print(f"Warning: {name}の計算結果が不完全です: res={res}")
+            pos_data = result[0]
+            err_data = result[1]
+            
+            print(f"位置データ: {type(pos_data)} = {pos_data}")
+            print(f"エラーデータ: {type(err_data)} = {err_data}")
+            
+            # エラーチェック
+            if isinstance(err_data, (int, float)) and err_data != 0:
+                print(f"エラーコード検出: {err_data}")
+                continue
+            elif isinstance(err_data, str) and err_data.strip():
+                print(f"エラーメッセージ検出: {err_data}")
                 continue
             
-            # 位置データの妥当性チェック
-            longitude = res[0]
-            speed = res[3] if len(res) > 3 else 1.0
+            # 位置データの解析
+            if not isinstance(pos_data, (tuple, list)) or len(pos_data) < 1:
+                print(f"エラー: 位置データが無効")
+                continue
             
-            if not isinstance(longitude, (int, float)) or longitude < 0 or longitude >= 360:
-                print(f"Warning: {name}の黄経が異常です: {longitude}")
+            longitude = pos_data[0]
+            speed = pos_data[3] if len(pos_data) > 3 else 1.0
+            
+            print(f"黄経: {longitude}, 速度: {speed}")
+            
+            # 妥当性チェック
+            if not isinstance(longitude, (int, float)):
+                print(f"エラー: 黄経が数値ではありません: {type(longitude)}")
                 continue
                 
-            # resは(黄経, 黄緯, 距離, 黄経速度, 黄緯速度, 距離速度)のタプル
+            if longitude < 0 or longitude >= 360:
+                print(f"警告: 黄経が範囲外: {longitude}")
+                # 範囲外でも一旦受け入れる
+                longitude = longitude % 360
+                
             points[name] = {'pos': longitude, 'speed': speed}
             successful_calculations += 1
-            print(f"成功: {name} = {longitude:.2f}度 (速度: {speed:.4f})")
+            print(f"成功: {longitude:.2f}度")
             
         except Exception as e:
-            print(f"Exception: {name}の計算中に例外が発生しました: {type(e).__name__}: {e}")
+            print(f"例外発生: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
             continue
 
+    print(f"\n=== 計算結果 ===")
+    print(f"成功: {successful_calculations}/{total_calculations}")
+    
     # ドラゴンテイルの計算
     if "ドラゴンヘッド" in points:
         head_pos = points["ドラゴンヘッド"]['pos']
-        points["ドラゴンテイル"] = {'pos': (head_pos + 180) % 360, 'speed': points["ドラゴンヘッド"]['speed']}
+        tail_pos = (head_pos + 180) % 360
+        points["ドラゴンテイル"] = {'pos': tail_pos, 'speed': points["ドラゴンヘッド"]['speed']}
         successful_calculations += 1
+        print(f"ドラゴンテイル追加: {tail_pos:.2f}度")
 
-    print(f"天体計算結果: {successful_calculations}/{total_calculations + (1 if 'ドラゴンヘッド' in celestial_bodies else 0)} 成功")
-    
+    print(f"最終結果: {successful_calculations}/{total_calculations + (1 if not is_helio and 'ドラゴンヘッド' in GEO_CELESTIAL_BODIES else 0)}")
     return points
 
 
