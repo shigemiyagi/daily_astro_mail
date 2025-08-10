@@ -454,7 +454,7 @@ def get_moon_age_and_event(geo_points):
 def generate_report_with_gemini(astro_data):
     """Gemini APIを呼び出してレポートを生成する"""
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     with open('prompt.txt', 'r', encoding='utf-8') as f:
         prompt_template = f.read()
     prompt = prompt_template.format(
