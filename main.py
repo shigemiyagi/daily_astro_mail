@@ -54,7 +54,7 @@ HELIO_CELESTIAL_BODIES = {
     "冥王星": swe.PLUTO
 }
 
-# アスペクト定義（オーブを調整）
+# アスペクト定義（オーブを修正）
 ASPECTS = {
     "コンジャンクション (0度)": {"angle": 0, "orb": 6},
     "オポジション (180度)": {"angle": 180, "orb": 6},
@@ -287,8 +287,56 @@ def format_houses_for_ai(title, houses):
     return "\n".join(lines)
 
 
-def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
-    """アスペクトを計算し、AI用にフォーマットする"""
+def calculate_days_until_aspect_ends(jd_ut, transit_body_id, transit_pos, transit_speed, natal_pos, aspect_angle, orb):
+    """アスペクトが規定オーブ外になるまでの日数を計算"""
+    if abs(transit_speed) < 0.0001:  # 速度がほぼ0の場合は計算不能
+        return None
+    
+    # 現在の角度差
+    current_angle_diff = abs((transit_pos - natal_pos + 180) % 360 - 180)
+    if current_angle_diff > 180:
+        current_angle_diff = 360 - current_angle_diff
+    
+    # アスペクト角度に対する現在のオーブ
+    current_orb = abs(current_angle_diff - aspect_angle)
+    
+    try:
+        # 1日後から最大30日後まで1日刻みでチェック
+        for days_ahead in range(1, 31):
+            future_jd = jd_ut + days_ahead
+            
+            # 未来の天体位置を計算
+            result = swe.calc_ut(future_jd, transit_body_id, swe.FLG_SWIEPH | swe.FLG_SPEED)
+            if not isinstance(result, (tuple, list)) or len(result) < 2:
+                continue
+                
+            pos_data = result[0]
+            if not isinstance(pos_data, (tuple, list)) or len(pos_data) < 1:
+                continue
+                
+            future_pos = pos_data[0] % 360
+            
+            # 未来の角度差を計算
+            future_angle_diff = abs((future_pos - natal_pos + 180) % 360 - 180)
+            if future_angle_diff > 180:
+                future_angle_diff = 360 - future_angle_diff
+            
+            future_orb = abs(future_angle_diff - aspect_angle)
+            
+            # オーブが規定値を超えた場合
+            if future_orb > orb:
+                return days_ahead
+        
+        # 30日以内にオーブ外にならない場合
+        return None
+        
+    except Exception as e:
+        print(f"日数計算エラー: {e}")
+        return None
+
+
+def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2="", jd_ut=None):
+    """アスペクトを計算し、AI用にフォーマットする（残り日数も含む）"""
     if not points1 or not points2: return ""
     aspect_list = []
     p1_items, p2_items = list(points1.items()), list(points2.items())
@@ -314,19 +362,36 @@ def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2=""):
             for aspect_name, params in ASPECTS.items():
                 orb_diff = abs(angle_diff - params['angle'])
                 if orb_diff <= params['orb']:
-                    # Applying/Separatingの判定（速いほうが遅いほうに近づいているかチェック）
-                    # より正確な判定のためには、実際の速度差と位置関係を考慮
+                    # Applying/Separatingの判定
                     applying_separating = ""
                     if points1 is not points2:  # トランジット-ネイタル間のみ判定
-                        # トランジット天体（通常より高速）がネイタル天体に向かっているか
                         speed_diff = speed1 - speed2
                         if speed_diff > 0.001:  # 近づいている
                             applying_separating = " (A)"
                         elif speed_diff < -0.001:  # 離れている
                             applying_separating = " (S)"
                     
+                    # 残り日数の計算（トランジット-ネイタルの場合のみ）
+                    days_remaining = ""
+                    if points1 is not points2 and jd_ut is not None:
+                        # トランジット天体のIDを取得
+                        transit_body_id = None
+                        for body_name, body_id in GEO_CELESTIAL_BODIES.items():
+                            if body_name == p1_name:
+                                transit_body_id = body_id
+                                break
+                        
+                        if transit_body_id is not None:
+                            days_left = calculate_days_until_aspect_ends(
+                                jd_ut, transit_body_id, pos1, speed1, pos2, params['angle'], params['orb']
+                            )
+                            if days_left is not None:
+                                days_remaining = f" (残り{days_left}日)"
+                            else:
+                                days_remaining = " (30日以上)"
+                    
                     orb_str = f"{orb_diff:.1f}度"
-                    line = f"- {prefix1}{p1_name}と{prefix2}{p2_name}が{aspect_name} (オーブ: {orb_str}){applying_separating}"
+                    line = f"- {prefix1}{p1_name}と{prefix2}{p2_name}が{aspect_name} (オーブ: {orb_str}){applying_separating}{days_remaining}"
                     aspect_list.append((orb_diff, line))  # オーブでソート用
                     break  # 1つのアスペクトが見つかったら次へ
     
@@ -442,7 +507,7 @@ def main():
 
     print(f"計算成功: ネイタル天体 {len(natal_points)}個, トランジット天体 {len(transit_geo_points)}個")
 
-    # 3. AI用データ編集（アスペクト出力を制限）
+    # 3. AI用データ編集（アスペクト出力を制限、残り日数付き）
     print("AIプロンプト用のデータを編集中...")
     astro_data_parts = [
         get_moon_age_and_event(transit_geo_points),
@@ -452,8 +517,8 @@ def main():
         format_positions_for_ai("今日の天体位置（太陽心）", transit_helio_points),
         # ネイタルアスペクトは削除（要求により）
         # calculate_aspects_for_ai("あなたのネイタルアスペクト", natal_points, natal_points, "N.", "N."),
-        calculate_aspects_for_ai("今日の空模様（トランジットアスペクト）", transit_geo_points, transit_geo_points, "T.", "T."),
-        calculate_aspects_for_ai("あなたへの影響（トランジット/ネイタルアスペクト）", transit_geo_points, natal_points, "今日の", "あなたの")
+        calculate_aspects_for_ai("今日の空模様（トランジットアスペクト）", transit_geo_points, transit_geo_points, "T.", "T.", jd_transit),
+        calculate_aspects_for_ai("あなたへの影響（トランジット/ネイタルアスペクト）", transit_geo_points, natal_points, "今日の", "あなたの", jd_transit)
     ]
     final_astro_data = "\n\n".join(filter(None, astro_data_parts))
     print("\n--- AIに送信する占星術データ ---\n")
