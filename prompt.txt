@@ -39,31 +39,31 @@
 
 **アスペクトリストの表形式：**
 各アスペクトタイプごとに、HTMLの表（table）を使用して以下の列で構成する：
-1. 天体1（トランジット）
+1. T天体（トランジット天体）
 2. アスペクト
-3. 天体2（ネイタル）
+3. N天体（ネイタル天体）
 4. オーブ
 5. 方向性（A/S）
 6. 残り日数
 
 例：
 ```html
-<table border="1" style="border-collapse: collapse; width: 100%;">
+<table border="1" style="border-collapse: collapse; width: auto; max-width: 800px; font-size: 14px;">
 <tr>
-<th>トランジット天体</th>
-<th>アスペクト</th>
-<th>ネイタル天体</th>
-<th>オーブ</th>
-<th>方向性</th>
-<th>残り日数</th>
+<th style="padding: 5px; white-space: nowrap;">T天体</th>
+<th style="padding: 5px; white-space: nowrap;">記号</th>
+<th style="padding: 5px; white-space: nowrap;">N天体</th>
+<th style="padding: 5px; white-space: nowrap;">オーブ</th>
+<th style="padding: 5px; white-space: nowrap;">A/S</th>
+<th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td>T☉</td>
-<td>△</td>
-<td>N♀</td>
-<td>2°15′</td>
-<td>A</td>
-<td>3日</td>
+<td style="padding: 5px; text-align: center;">T☉</td>
+<td style="padding: 5px; text-align: center;">△</td>
+<td style="padding: 5px; text-align: center;">N♀</td>
+<td style="padding: 5px; text-align: center;">2°15′</td>
+<td style="padding: 5px; text-align: center;">A</td>
+<td style="padding: 5px; text-align: center;">3日</td>
 </tr>
 </table>
 ```
@@ -94,42 +94,42 @@ HTMLで記述してください。<h2>タグを見出し、<p>タグを段落、
 <h2>今日のアスペクトリスト 📊</h2>
 
 <h3>コンジャンクション（☌）</h3>
-<table border="1" style="border-collapse: collapse; width: 100%;">
+<table border="1" style="border-collapse: collapse; width: auto; max-width: 800px; font-size: 14px;">
 <tr style="background-color: #f2f2f2;">
-<th>トランジット天体</th>
-<th>アスペクト</th>
-<th>ネイタル天体</th>
-<th>オーブ</th>
-<th>方向性</th>
-<th>残り日数</th>
+<th style="padding: 5px; white-space: nowrap;">T天体</th>
+<th style="padding: 5px; white-space: nowrap;">記号</th>
+<th style="padding: 5px; white-space: nowrap;">N天体</th>
+<th style="padding: 5px; white-space: nowrap;">オーブ</th>
+<th style="padding: 5px; white-space: nowrap;">A/S</th>
+<th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td>(天体名)</td>
-<td>☌</td>
-<td>(天体名)</td>
-<td>(オーブ)</td>
-<td>(A/S)</td>
-<td>(日数)</td>
+<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">☌</td>
+<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(オーブ)</td>
+<td style="padding: 5px; text-align: center;">(A/S)</td>
+<td style="padding: 5px; text-align: center;">(日数)</td>
 </tr>
 </table>
 
 <h3>オポジション（☍）</h3>
-<table border="1" style="border-collapse: collapse; width: 100%;">
+<table border="1" style="border-collapse: collapse; width: auto; max-width: 800px; font-size: 14px;">
 <tr style="background-color: #f2f2f2;">
-<th>トランジット天体</th>
-<th>アスペクト</th>
-<th>ネイタル天体</th>
-<th>オーブ</th>
-<th>方向性</th>
-<th>残り日数</th>
+<th style="padding: 5px; white-space: nowrap;">T天体</th>
+<th style="padding: 5px; white-space: nowrap;">記号</th>
+<th style="padding: 5px; white-space: nowrap;">N天体</th>
+<th style="padding: 5px; white-space: nowrap;">オーブ</th>
+<th style="padding: 5px; white-space: nowrap;">A/S</th>
+<th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td>(天体名)</td>
-<td>☍</td>
-<td>(天体名)</td>
-<td>(オーブ)</td>
-<td>(A/S)</td>
-<td>(日数)</td>
+<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">☍</td>
+<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(オーブ)</td>
+<td style="padding: 5px; text-align: center;">(A/S)</td>
+<td style="padding: 5px; text-align: center;">(日数)</td>
 </tr>
 </table>
 
