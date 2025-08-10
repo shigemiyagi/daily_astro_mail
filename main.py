@@ -346,8 +346,9 @@ def calculate_aspects_for_ai(title, points1, points2, prefix1="", prefix2="", jd
             p1_name, p1_data = p1_items[i]
             p2_name, p2_data = p2_items[j]
 
-            # 同じ天体リスト内で同じ天体同士は除外
-            if points1 is points2 and i >= j:
+            # 同じ天体リスト内で完全に同じ天体同士（同じインデックス）は除外
+            # 異なるリスト間（トランジット-ネイタル）や、同じリスト内でも異なる天体は計算する
+            if points1 is points2 and i == j:
                 continue
 
             pos1, speed1 = p1_data['pos'], p1_data['speed']
