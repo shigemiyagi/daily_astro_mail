@@ -32,10 +32,12 @@
 アスペクトリストには以下の情報を統一された形式で記載すること：
 
 **天体名の表記ルール：**
-- 太陽：☉ 月：☽ 水星：☿ 金星：♀ 火星：♂ 木星：♃ 土星：♄ 天王星：♅ 海王星：♆ 冥王星：♇ 
-- キロン：キロン リリス：リリス ドラゴンヘッド：Nh ドラゴンテイル：Nt
-- 逆行天体には末尾に「R」を付ける
-- トランジット天体：「T」プレフィックス、ネイタル天体：「N」プレフィックス
+- **天体記号**: 太陽☉、月☽、水星☿、金星♀、火星♂、木星♃、土星♄、天王星♅、海王星♆、冥王星♇、地球🜨
+- **感受点**: キロン⚷、リリス⚸、ドラゴンヘッド☊、ドラゴンテイル☋
+- **サイン記号**: 牡羊座♈、牡牛座♉、双子座♊、蟹座♋、獅子座♌、乙女座♍、天秤座♎、蠍座♏、射手座♐、山羊座♑、水瓶座♒、魚座♓
+- **逆行天体には末尾に「R」を付ける**
+- **表記形式**: 天体記号＋サイン記号（例：☉♈、☽♋R）
+- **ヘッダーでT天体、N天体と明記されているため、個別の天体記号にT、Nプレフィックスは不要**
 
 **アスペクトリストの表形式：**
 各アスペクトタイプごとに、HTMLの表（table）を使用して以下の列で構成する：
@@ -58,9 +60,9 @@
 <th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td style="padding: 5px; text-align: center;">T☉</td>
+<td style="padding: 5px; text-align: center;">☉♈</td>
 <td style="padding: 5px; text-align: center;">△</td>
-<td style="padding: 5px; text-align: center;">N♀</td>
+<td style="padding: 5px; text-align: center;">♀♎</td>
 <td style="padding: 5px; text-align: center;">2°15′</td>
 <td style="padding: 5px; text-align: center;">A</td>
 <td style="padding: 5px; text-align: center;">3日</td>
@@ -104,9 +106,9 @@ HTMLで記述してください。<h2>タグを見出し、<p>タグを段落、
 <th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(天体記号+サイン記号)</td>
 <td style="padding: 5px; text-align: center;">☌</td>
-<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(天体記号+サイン記号)</td>
 <td style="padding: 5px; text-align: center;">(オーブ)</td>
 <td style="padding: 5px; text-align: center;">(A/S)</td>
 <td style="padding: 5px; text-align: center;">(日数)</td>
@@ -124,9 +126,9 @@ HTMLで記述してください。<h2>タグを見出し、<p>タグを段落、
 <th style="padding: 5px; white-space: nowrap;">残り日数</th>
 </tr>
 <tr>
-<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(天体記号+サイン記号)</td>
 <td style="padding: 5px; text-align: center;">☍</td>
-<td style="padding: 5px; text-align: center;">(天体名)</td>
+<td style="padding: 5px; text-align: center;">(天体記号+サイン記号)</td>
 <td style="padding: 5px; text-align: center;">(オーブ)</td>
 <td style="padding: 5px; text-align: center;">(A/S)</td>
 <td style="padding: 5px; text-align: center;">(日数)</td>
