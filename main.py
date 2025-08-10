@@ -292,6 +292,8 @@ def calculate_days_until_aspect_ends(jd_ut, transit_body_id, transit_pos, transi
     if abs(transit_speed) < 0.0001:  # 速度がほぼ0の場合は計算不能
         return None
     
+    print(f"残り日数計算: 天体ID={transit_body_id}, 現在位置={transit_pos:.2f}, 速度={transit_speed:.6f}")
+    
     # 現在の角度差
     current_angle_diff = abs((transit_pos - natal_pos + 180) % 360 - 180)
     if current_angle_diff > 180:
@@ -299,6 +301,7 @@ def calculate_days_until_aspect_ends(jd_ut, transit_body_id, transit_pos, transi
     
     # アスペクト角度に対する現在のオーブ
     current_orb = abs(current_angle_diff - aspect_angle)
+    print(f"現在のオーブ: {current_orb:.2f}度, 許容オーブ: {orb}度")
     
     try:
         # 1日後から最大30日後まで1日刻みでチェック
@@ -306,32 +309,45 @@ def calculate_days_until_aspect_ends(jd_ut, transit_body_id, transit_pos, transi
             future_jd = jd_ut + days_ahead
             
             # 未来の天体位置を計算
-            result = swe.calc_ut(future_jd, transit_body_id, swe.FLG_SWIEPH | swe.FLG_SPEED)
-            if not isinstance(result, (tuple, list)) or len(result) < 2:
-                continue
+            try:
+                result = swe.calc_ut(future_jd, transit_body_id, swe.FLG_SWIEPH | swe.FLG_SPEED)
+                if not isinstance(result, (tuple, list)) or len(result) < 2:
+                    print(f"日{days_ahead}: calc_ut結果が無効")
+                    continue
+                    
+                pos_data = result[0]
+                if not isinstance(pos_data, (tuple, list)) or len(pos_data) < 1:
+                    print(f"日{days_ahead}: 位置データが無効")
+                    continue
+                    
+                future_pos = pos_data[0] % 360
                 
-            pos_data = result[0]
-            if not isinstance(pos_data, (tuple, list)) or len(pos_data) < 1:
-                continue
+                # 未来の角度差を計算
+                future_angle_diff = abs((future_pos - natal_pos + 180) % 360 - 180)
+                if future_angle_diff > 180:
+                    future_angle_diff = 360 - future_angle_diff
                 
-            future_pos = pos_data[0] % 360
-            
-            # 未来の角度差を計算
-            future_angle_diff = abs((future_pos - natal_pos + 180) % 360 - 180)
-            if future_angle_diff > 180:
-                future_angle_diff = 360 - future_angle_diff
-            
-            future_orb = abs(future_angle_diff - aspect_angle)
-            
-            # オーブが規定値を超えた場合
-            if future_orb > orb:
-                return days_ahead
+                future_orb = abs(future_angle_diff - aspect_angle)
+                
+                # デバッグ出力（最初の3日分のみ）
+                if days_ahead <= 3:
+                    print(f"日{days_ahead}: 位置={future_pos:.2f}, オーブ={future_orb:.2f}")
+                
+                # オーブが規定値を超えた場合
+                if future_orb > orb:
+                    print(f"結果: {days_ahead}日後にオーブ外になる")
+                    return days_ahead
+                    
+            except Exception as e:
+                print(f"日{days_ahead}: 天体計算エラー - {e}")
+                continue
         
         # 30日以内にオーブ外にならない場合
+        print(f"結果: 30日以上継続")
         return None
         
     except Exception as e:
-        print(f"日数計算エラー: {e}")
+        print(f"残り日数計算の全般エラー: {e}")
         return None
 
 
